@@ -1,13 +1,13 @@
 <?php
 /**
- * Copyright © MageDevGroup. All rights reserved.
+ * Copyright © DMLab. All rights reserved.
  */
 declare(strict_types=1);
 
-namespace MageDevGroup\TypesenseCore\Model\Client\Http;
+namespace DmLab\TypesenseCore\Model\Client\Http;
 
 use Laminas\Http\Response as LaminasResponse;
-use MageDevGroup\TypesenseCore\Exception\TransportException;
+use DmLab\TypesenseCore\Exception\TransportException;
 use Magento\Framework\HTTP\Adapter\CurlFactory;
 
 /**

@@ -1,14 +1,14 @@
 <?php
 /**
- * Copyright © MageDevGroup. All rights reserved.
+ * Copyright © DMLab. All rights reserved.
  */
 declare(strict_types=1);
 
-namespace MageDevGroup\TypesenseCore\Test\Unit\Model\Schema;
+namespace DmLab\TypesenseCore\Test\Unit\Model\Schema;
 
-use MageDevGroup\TypesenseCore\Model\Collection\FieldSpec;
-use MageDevGroup\TypesenseCore\Model\Schema\FieldChange;
-use MageDevGroup\TypesenseCore\Model\Schema\SchemaDiff;
+use DmLab\TypesenseCore\Model\Collection\FieldSpec;
+use DmLab\TypesenseCore\Model\Schema\FieldChange;
+use DmLab\TypesenseCore\Model\Schema\SchemaDiff;
 use PHPUnit\Framework\TestCase;
 
 class SchemaDiffTest extends TestCase

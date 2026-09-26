@@ -1,10 +1,10 @@
 <?php
 /**
- * Copyright © MageDevGroup. All rights reserved.
+ * Copyright © DMLab. All rights reserved.
  */
 declare(strict_types=1);
 
-namespace MageDevGroup\TypesenseCore\Model\Schema;
+namespace DmLab\TypesenseCore\Model\Schema;
 
 /**
  * How a schema change should be applied — and, for an in-place one, what applying it returned.

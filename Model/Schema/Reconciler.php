@@ -1,14 +1,14 @@
 <?php
 /**
- * Copyright © MageDevGroup. All rights reserved.
+ * Copyright © DMLab. All rights reserved.
  */
 declare(strict_types=1);
 
-namespace MageDevGroup\TypesenseCore\Model\Schema;
+namespace DmLab\TypesenseCore\Model\Schema;
 
-use MageDevGroup\TypesenseCore\Exception\TypesenseException;
-use MageDevGroup\TypesenseCore\Model\Collection\CollectionManager;
-use MageDevGroup\TypesenseCore\Model\Collection\FieldSpec;
+use DmLab\TypesenseCore\Exception\TypesenseException;
+use DmLab\TypesenseCore\Model\Collection\CollectionManager;
+use DmLab\TypesenseCore\Model\Collection\FieldSpec;
 
 /**
  * Decides how a schema change should be applied — and applies it only when it is in place.

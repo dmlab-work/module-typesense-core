@@ -1,15 +1,15 @@
 <?php
 /**
- * Copyright © MageDevGroup. All rights reserved.
+ * Copyright © DMLab. All rights reserved.
  */
 declare(strict_types=1);
 
-namespace MageDevGroup\TypesenseCore\Test\Unit\Model\Document;
+namespace DmLab\TypesenseCore\Test\Unit\Model\Document;
 
-use MageDevGroup\TypesenseCore\Exception\TypesenseException;
-use MageDevGroup\TypesenseCore\Api\ConnectionSettingsInterface;
-use MageDevGroup\TypesenseCore\Model\Client\TypesenseClient;
-use MageDevGroup\TypesenseCore\Model\Document\DocumentWriter;
+use DmLab\TypesenseCore\Exception\TypesenseException;
+use DmLab\TypesenseCore\Api\ConnectionSettingsInterface;
+use DmLab\TypesenseCore\Model\Client\TypesenseClient;
+use DmLab\TypesenseCore\Model\Document\DocumentWriter;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;

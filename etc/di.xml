@@ -1,30 +1,30 @@
 <?xml version="1.0"?>
 <!--
 /**
- * Copyright © MageDevGroup. All rights reserved.
+ * Copyright © DMLab. All rights reserved.
  */
 -->
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
-    <preference for="MageDevGroup\TypesenseCore\Model\Client\Http\TransportInterface"
-                type="MageDevGroup\TypesenseCore\Model\Client\Http\CurlTransport"/>
+    <preference for="DmLab\TypesenseCore\Model\Client\Http\TransportInterface"
+                type="DmLab\TypesenseCore\Model\Client\Http\CurlTransport"/>
 
     <!--
         Core owns no config: it uses whatever connection it is handed. This default fails with an
-        actionable message until MageDevGroup_TypesenseIndexer overrides the preference with the
+        actionable message until DmLab_TypesenseIndexer overrides the preference with the
         implementation that reads catalog/search/typesense_*.
     -->
-    <preference for="MageDevGroup\TypesenseCore\Api\ConnectionSettingsInterface"
-                type="MageDevGroup\TypesenseCore\Model\NotConfiguredConnectionSettings"/>
+    <preference for="DmLab\TypesenseCore\Api\ConnectionSettingsInterface"
+                type="DmLab\TypesenseCore\Model\NotConfiguredConnectionSettings"/>
 
     <type name="Magento\Framework\Console\CommandList">
         <arguments>
             <argument name="commands" xsi:type="array">
-                <item name="magedevgroup_typesense_ping" xsi:type="object">
-                    MageDevGroup\TypesenseCore\Console\Command\PingCommand
+                <item name="dmlab_typesense_ping" xsi:type="object">
+                    DmLab\TypesenseCore\Console\Command\PingCommand
                 </item>
-                <item name="magedevgroup_typesense_alias_status" xsi:type="object">
-                    MageDevGroup\TypesenseCore\Console\Command\AliasStatusCommand
+                <item name="dmlab_typesense_alias_status" xsi:type="object">
+                    DmLab\TypesenseCore\Console\Command\AliasStatusCommand
                 </item>
             </argument>
         </arguments>

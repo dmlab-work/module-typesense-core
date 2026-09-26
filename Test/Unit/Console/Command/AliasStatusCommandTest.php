@@ -1,14 +1,14 @@
 <?php
 /**
- * Copyright © MageDevGroup. All rights reserved.
+ * Copyright © DMLab. All rights reserved.
  */
 declare(strict_types=1);
 
-namespace MageDevGroup\TypesenseCore\Test\Unit\Console\Command;
+namespace DmLab\TypesenseCore\Test\Unit\Console\Command;
 
-use MageDevGroup\TypesenseCore\Console\Command\AliasStatusCommand;
-use MageDevGroup\TypesenseCore\Exception\TransportException;
-use MageDevGroup\TypesenseCore\Model\Collection\AliasManager;
+use DmLab\TypesenseCore\Console\Command\AliasStatusCommand;
+use DmLab\TypesenseCore\Exception\TransportException;
+use DmLab\TypesenseCore\Model\Collection\AliasManager;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;

@@ -1,15 +1,15 @@
 <?php
 /**
- * Copyright © MageDevGroup. All rights reserved.
+ * Copyright © DMLab. All rights reserved.
  */
 declare(strict_types=1);
 
-namespace MageDevGroup\TypesenseCore\Console\Command;
+namespace DmLab\TypesenseCore\Console\Command;
 
-use MageDevGroup\TypesenseCore\Api\ConnectionSettingsInterface;
-use MageDevGroup\TypesenseCore\Exception\ConfigurationException;
-use MageDevGroup\TypesenseCore\Model\Client\Http\TransportInterface;
-use MageDevGroup\TypesenseCore\Model\Config\Node;
+use DmLab\TypesenseCore\Api\ConnectionSettingsInterface;
+use DmLab\TypesenseCore\Exception\ConfigurationException;
+use DmLab\TypesenseCore\Model\Client\Http\TransportInterface;
+use DmLab\TypesenseCore\Model\Config\Node;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -17,7 +17,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 /**
  * Health and version of every configured node.
  *
- * Goes through the transport rather than {@see \MageDevGroup\TypesenseCore\Model\Client\TypesenseClient}
+ * Goes through the transport rather than {@see \DmLab\TypesenseCore\Model\Client\TypesenseClient}
  * on purpose: the client fails over and hides which node answered, while a diagnostic must report
  * each node separately — a healthy cluster with one dead node looks fine through the client.
  */
@@ -44,7 +44,7 @@ class PingCommand extends Command
      */
     protected function configure(): void
     {
-        $this->setName('magedevgroup:typesense:ping');
+        $this->setName('dmlab:typesense:ping');
         $this->setDescription('Check health and version of every configured Typesense node');
 
         parent::configure();

@@ -1,13 +1,13 @@
 <?php
 /**
- * Copyright © MageDevGroup. All rights reserved.
+ * Copyright © DMLab. All rights reserved.
  */
 declare(strict_types=1);
 
-namespace MageDevGroup\TypesenseCore\Model;
+namespace DmLab\TypesenseCore\Model;
 
-use MageDevGroup\TypesenseCore\Api\ConnectionSettingsInterface;
-use MageDevGroup\TypesenseCore\Exception\ConfigurationException;
+use DmLab\TypesenseCore\Api\ConnectionSettingsInterface;
+use DmLab\TypesenseCore\Exception\ConfigurationException;
 
 /**
  * Default {@see ConnectionSettingsInterface} binding: a connection that is not configured.
@@ -15,11 +15,11 @@ use MageDevGroup\TypesenseCore\Exception\ConfigurationException;
  * Core defines the contract but owns no config, so its own DI graph would otherwise have no
  * implementation to resolve. This one keeps the graph valid and fails with a clear, actionable
  * message the moment anything actually asks for the connection —
- * `MageDevGroup_TypesenseIndexer` overrides the preference with the real reader.
+ * `DmLab_TypesenseIndexer` overrides the preference with the real reader.
  */
 class NotConfiguredConnectionSettings implements ConnectionSettingsInterface
 {
-    private const MESSAGE = 'Typesense connection not configured — install/configure MageDevGroup_TypesenseIndexer';
+    private const MESSAGE = 'Typesense connection not configured — install/configure DmLab_TypesenseIndexer';
 
     /**
      * @inheritDoc

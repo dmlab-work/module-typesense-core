@@ -1,13 +1,13 @@
 <?php
 /**
- * Copyright © MageDevGroup. All rights reserved.
+ * Copyright © DMLab. All rights reserved.
  */
 declare(strict_types=1);
 
-namespace MageDevGroup\TypesenseCore\Test\Unit\Model\Client\Http;
+namespace DmLab\TypesenseCore\Test\Unit\Model\Client\Http;
 
-use MageDevGroup\TypesenseCore\Exception\TransportException;
-use MageDevGroup\TypesenseCore\Model\Client\Http\CurlTransport;
+use DmLab\TypesenseCore\Exception\TransportException;
+use DmLab\TypesenseCore\Model\Client\Http\CurlTransport;
 use Magento\Framework\HTTP\Adapter\Curl;
 use Magento\Framework\HTTP\Adapter\CurlFactory;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;

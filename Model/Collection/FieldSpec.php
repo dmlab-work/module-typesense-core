@@ -1,10 +1,10 @@
 <?php
 /**
- * Copyright © MageDevGroup. All rights reserved.
+ * Copyright © DMLab. All rights reserved.
  */
 declare(strict_types=1);
 
-namespace MageDevGroup\TypesenseCore\Model\Collection;
+namespace DmLab\TypesenseCore\Model\Collection;
 
 /**
  * One field of a Typesense collection schema.

@@ -1,6 +1,6 @@
 <?php
 /**
- * Copyright © MageDevGroup. All rights reserved.
+ * Copyright © DMLab. All rights reserved.
  *
  * Standalone unit-test bootstrap: loads Magento's Composer autoloader (for the
  * framework classes this module depends on), registers a PSR-4 map for this
@@ -34,7 +34,7 @@ if (!$autoloaderLoaded) {
 }
 
 spl_autoload_register(static function (string $class) use ($moduleRoot): void {
-    $prefix = 'MageDevGroup\\TypesenseCore\\';
+    $prefix = 'DmLab\\TypesenseCore\\';
     if (!str_starts_with($class, $prefix)) {
         return;
     }

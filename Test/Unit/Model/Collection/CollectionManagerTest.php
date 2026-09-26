@@ -1,16 +1,16 @@
 <?php
 /**
- * Copyright © MageDevGroup. All rights reserved.
+ * Copyright © DMLab. All rights reserved.
  */
 declare(strict_types=1);
 
-namespace MageDevGroup\TypesenseCore\Test\Unit\Model\Collection;
+namespace DmLab\TypesenseCore\Test\Unit\Model\Collection;
 
-use MageDevGroup\TypesenseCore\Exception\TypesenseException;
-use MageDevGroup\TypesenseCore\Model\Client\TypesenseClient;
-use MageDevGroup\TypesenseCore\Model\Collection\CollectionManager;
-use MageDevGroup\TypesenseCore\Api\ConnectionSettingsInterface;
-use MageDevGroup\TypesenseCore\Model\Collection\FieldSpec;
+use DmLab\TypesenseCore\Exception\TypesenseException;
+use DmLab\TypesenseCore\Model\Client\TypesenseClient;
+use DmLab\TypesenseCore\Model\Collection\CollectionManager;
+use DmLab\TypesenseCore\Api\ConnectionSettingsInterface;
+use DmLab\TypesenseCore\Model\Collection\FieldSpec;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 

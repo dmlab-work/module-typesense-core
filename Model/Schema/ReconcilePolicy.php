@@ -1,10 +1,10 @@
 <?php
 /**
- * Copyright © MageDevGroup. All rights reserved.
+ * Copyright © DMLab. All rights reserved.
  */
 declare(strict_types=1);
 
-namespace MageDevGroup\TypesenseCore\Model\Schema;
+namespace DmLab\TypesenseCore\Model\Schema;
 
 /**
  * How the reconciler should choose between an in-place PATCH and a rebuild.

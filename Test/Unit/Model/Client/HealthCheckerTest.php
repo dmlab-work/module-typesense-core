@@ -1,15 +1,15 @@
 <?php
 /**
- * Copyright © MageDevGroup. All rights reserved.
+ * Copyright © DMLab. All rights reserved.
  */
 declare(strict_types=1);
 
-namespace MageDevGroup\TypesenseCore\Test\Unit\Model\Client;
+namespace DmLab\TypesenseCore\Test\Unit\Model\Client;
 
-use MageDevGroup\TypesenseCore\Exception\TransportException;
-use MageDevGroup\TypesenseCore\Model\Client\HealthChecker;
-use MageDevGroup\TypesenseCore\Api\ConnectionSettingsInterface;
-use MageDevGroup\TypesenseCore\Model\Client\TypesenseClient;
+use DmLab\TypesenseCore\Exception\TransportException;
+use DmLab\TypesenseCore\Model\Client\HealthChecker;
+use DmLab\TypesenseCore\Api\ConnectionSettingsInterface;
+use DmLab\TypesenseCore\Model\Client\TypesenseClient;
 use Magento\Framework\App\CacheInterface;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -20,7 +20,7 @@ use Psr\Log\LoggerInterface;
 #[AllowMockObjectsWithoutExpectations]
 class HealthCheckerTest extends TestCase
 {
-    private const CACHE_KEY = 'magedevgroup_typesense_health';
+    private const CACHE_KEY = 'dmlab_typesense_health';
 
     /** @var ConnectionSettingsInterface|MockObject */
     private MockObject $config;
@@ -66,7 +66,7 @@ class HealthCheckerTest extends TestCase
         $this->client->method('request')->willReturn(['ok' => true]);
         $this->cache->expects($this->once())
             ->method('save')
-            ->with('1', self::CACHE_KEY, ['MAGEDEVGROUP_TYPESENSE'], 30);
+            ->with('1', self::CACHE_KEY, ['DMLAB_TYPESENSE'], 30);
 
         $this->checker->isHealthy();
     }
@@ -135,7 +135,7 @@ class HealthCheckerTest extends TestCase
         $this->client->method('request')->willThrowException(new TransportException('Connection refused'));
         $this->cache->expects($this->once())
             ->method('save')
-            ->with('0', self::CACHE_KEY, ['MAGEDEVGROUP_TYPESENSE'], 30);
+            ->with('0', self::CACHE_KEY, ['DMLAB_TYPESENSE'], 30);
 
         $this->assertFalse($this->checker->isHealthy());
     }
@@ -169,7 +169,7 @@ class HealthCheckerTest extends TestCase
         $checker = new HealthChecker($config, $this->client, $this->cache, $this->logger);
 
         $this->client->method('request')
-            ->willThrowException(new \MageDevGroup\TypesenseCore\Exception\ConfigurationException('No key'));
+            ->willThrowException(new \DmLab\TypesenseCore\Exception\ConfigurationException('No key'));
 
         $this->assertFalse($checker->isHealthy());
     }

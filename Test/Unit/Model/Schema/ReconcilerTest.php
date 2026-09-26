@@ -1,18 +1,18 @@
 <?php
 /**
- * Copyright © MageDevGroup. All rights reserved.
+ * Copyright © DMLab. All rights reserved.
  */
 declare(strict_types=1);
 
-namespace MageDevGroup\TypesenseCore\Test\Unit\Model\Schema;
+namespace DmLab\TypesenseCore\Test\Unit\Model\Schema;
 
-use MageDevGroup\TypesenseCore\Exception\TypesenseException;
-use MageDevGroup\TypesenseCore\Model\Collection\CollectionManager;
-use MageDevGroup\TypesenseCore\Model\Collection\FieldSpec;
-use MageDevGroup\TypesenseCore\Model\Schema\Decision;
-use MageDevGroup\TypesenseCore\Model\Schema\Reconciler;
-use MageDevGroup\TypesenseCore\Model\Schema\ReconcilePolicy;
-use MageDevGroup\TypesenseCore\Model\Schema\SchemaDiffer;
+use DmLab\TypesenseCore\Exception\TypesenseException;
+use DmLab\TypesenseCore\Model\Collection\CollectionManager;
+use DmLab\TypesenseCore\Model\Collection\FieldSpec;
+use DmLab\TypesenseCore\Model\Schema\Decision;
+use DmLab\TypesenseCore\Model\Schema\Reconciler;
+use DmLab\TypesenseCore\Model\Schema\ReconcilePolicy;
+use DmLab\TypesenseCore\Model\Schema\SchemaDiffer;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;

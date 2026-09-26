@@ -1,13 +1,13 @@
 <?php
 /**
- * Copyright © MageDevGroup. All rights reserved.
+ * Copyright © DMLab. All rights reserved.
  */
 declare(strict_types=1);
 
-namespace MageDevGroup\TypesenseCore\Test\Unit\Model;
+namespace DmLab\TypesenseCore\Test\Unit\Model;
 
-use MageDevGroup\TypesenseCore\Exception\ConfigurationException;
-use MageDevGroup\TypesenseCore\Model\NotConfiguredConnectionSettings;
+use DmLab\TypesenseCore\Exception\ConfigurationException;
+use DmLab\TypesenseCore\Model\NotConfiguredConnectionSettings;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -30,7 +30,7 @@ class NotConfiguredConnectionSettingsTest extends TestCase
     public function testEveryGetterThrowsWithAnActionableMessage(string $method): void
     {
         $this->expectException(ConfigurationException::class);
-        $this->expectExceptionMessage('MageDevGroup_TypesenseIndexer');
+        $this->expectExceptionMessage('DmLab_TypesenseIndexer');
 
         $this->settings->$method();
     }

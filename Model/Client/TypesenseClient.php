@@ -1,16 +1,16 @@
 <?php
 /**
- * Copyright © MageDevGroup. All rights reserved.
+ * Copyright © DMLab. All rights reserved.
  */
 declare(strict_types=1);
 
-namespace MageDevGroup\TypesenseCore\Model\Client;
+namespace DmLab\TypesenseCore\Model\Client;
 
-use MageDevGroup\TypesenseCore\Api\ConnectionSettingsInterface;
-use MageDevGroup\TypesenseCore\Exception\TransportException;
-use MageDevGroup\TypesenseCore\Exception\TypesenseException;
-use MageDevGroup\TypesenseCore\Model\Client\Http\Response;
-use MageDevGroup\TypesenseCore\Model\Client\Http\TransportInterface;
+use DmLab\TypesenseCore\Api\ConnectionSettingsInterface;
+use DmLab\TypesenseCore\Exception\TransportException;
+use DmLab\TypesenseCore\Exception\TypesenseException;
+use DmLab\TypesenseCore\Model\Client\Http\Response;
+use DmLab\TypesenseCore\Model\Client\Http\TransportInterface;
 
 /**
  * The module's only door to the Typesense REST API.

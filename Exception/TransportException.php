@@ -1,10 +1,10 @@
 <?php
 /**
- * Copyright © MageDevGroup. All rights reserved.
+ * Copyright © DMLab. All rights reserved.
  */
 declare(strict_types=1);
 
-namespace MageDevGroup\TypesenseCore\Exception;
+namespace DmLab\TypesenseCore\Exception;
 
 /**
  * Thrown when a node could not be reached at all — no HTTP response.

@@ -1,12 +1,12 @@
 <?php
 /**
- * Copyright © MageDevGroup. All rights reserved.
+ * Copyright © DMLab. All rights reserved.
  */
 declare(strict_types=1);
 
-namespace MageDevGroup\TypesenseCore\Test\Unit\Model\Collection;
+namespace DmLab\TypesenseCore\Test\Unit\Model\Collection;
 
-use MageDevGroup\TypesenseCore\Model\Collection\FieldSpec;
+use DmLab\TypesenseCore\Model\Collection\FieldSpec;
 use PHPUnit\Framework\TestCase;
 
 class FieldSpecTest extends TestCase

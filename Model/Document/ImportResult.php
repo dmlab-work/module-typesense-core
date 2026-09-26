@@ -1,10 +1,10 @@
 <?php
 /**
- * Copyright © MageDevGroup. All rights reserved.
+ * Copyright © DMLab. All rights reserved.
  */
 declare(strict_types=1);
 
-namespace MageDevGroup\TypesenseCore\Model\Document;
+namespace DmLab\TypesenseCore\Model\Document;
 
 /**
  * The outcome of an import, aggregated across every batch it took.

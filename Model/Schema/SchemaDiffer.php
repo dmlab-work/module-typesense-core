@@ -1,12 +1,12 @@
 <?php
 /**
- * Copyright © MageDevGroup. All rights reserved.
+ * Copyright © DMLab. All rights reserved.
  */
 declare(strict_types=1);
 
-namespace MageDevGroup\TypesenseCore\Model\Schema;
+namespace DmLab\TypesenseCore\Model\Schema;
 
-use MageDevGroup\TypesenseCore\Model\Collection\FieldSpec;
+use DmLab\TypesenseCore\Model\Collection\FieldSpec;
 
 /**
  * Compares a desired field set against a collection's actual schema.

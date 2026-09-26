@@ -1,10 +1,10 @@
 <?php
 /**
- * Copyright © MageDevGroup. All rights reserved.
+ * Copyright © DMLab. All rights reserved.
  */
 declare(strict_types=1);
 
-namespace MageDevGroup\TypesenseCore\Exception;
+namespace DmLab\TypesenseCore\Exception;
 
 /**
  * Thrown when the module's connection configuration is missing or malformed.

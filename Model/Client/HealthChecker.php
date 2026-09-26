@@ -1,12 +1,12 @@
 <?php
 /**
- * Copyright © MageDevGroup. All rights reserved.
+ * Copyright © DMLab. All rights reserved.
  */
 declare(strict_types=1);
 
-namespace MageDevGroup\TypesenseCore\Model\Client;
+namespace DmLab\TypesenseCore\Model\Client;
 
-use MageDevGroup\TypesenseCore\Api\ConnectionSettingsInterface;
+use DmLab\TypesenseCore\Api\ConnectionSettingsInterface;
 use Magento\Framework\App\CacheInterface;
 use Psr\Log\LoggerInterface;
 
@@ -22,8 +22,8 @@ use Psr\Log\LoggerInterface;
  */
 class HealthChecker
 {
-    private const CACHE_KEY = 'magedevgroup_typesense_health';
-    private const CACHE_TAG = 'MAGEDEVGROUP_TYPESENSE';
+    private const CACHE_KEY = 'dmlab_typesense_health';
+    private const CACHE_TAG = 'DMLAB_TYPESENSE';
 
     /** Health must answer fast or be treated as down; the configured timeout is for real work. */
     private const HEALTH_TIMEOUT = 2;

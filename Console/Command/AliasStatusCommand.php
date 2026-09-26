@@ -1,12 +1,12 @@
 <?php
 /**
- * Copyright © MageDevGroup. All rights reserved.
+ * Copyright © DMLab. All rights reserved.
  */
 declare(strict_types=1);
 
-namespace MageDevGroup\TypesenseCore\Console\Command;
+namespace DmLab\TypesenseCore\Console\Command;
 
-use MageDevGroup\TypesenseCore\Model\Collection\AliasManager;
+use DmLab\TypesenseCore\Model\Collection\AliasManager;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Helper\Table;
 use Symfony\Component\Console\Input\InputInterface;
@@ -35,7 +35,7 @@ class AliasStatusCommand extends Command
      */
     protected function configure(): void
     {
-        $this->setName('magedevgroup:typesense:alias:status');
+        $this->setName('dmlab:typesense:alias:status');
         $this->setDescription('List Typesense aliases and their target collections');
 
         parent::configure();

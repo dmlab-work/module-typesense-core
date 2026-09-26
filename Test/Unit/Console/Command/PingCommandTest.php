@@ -1,18 +1,18 @@
 <?php
 /**
- * Copyright © MageDevGroup. All rights reserved.
+ * Copyright © DMLab. All rights reserved.
  */
 declare(strict_types=1);
 
-namespace MageDevGroup\TypesenseCore\Test\Unit\Console\Command;
+namespace DmLab\TypesenseCore\Test\Unit\Console\Command;
 
-use MageDevGroup\TypesenseCore\Console\Command\PingCommand;
-use MageDevGroup\TypesenseCore\Exception\ConfigurationException;
-use MageDevGroup\TypesenseCore\Exception\TransportException;
-use MageDevGroup\TypesenseCore\Model\Client\Http\Response;
-use MageDevGroup\TypesenseCore\Api\ConnectionSettingsInterface;
-use MageDevGroup\TypesenseCore\Model\Client\Http\TransportInterface;
-use MageDevGroup\TypesenseCore\Model\Config\Node;
+use DmLab\TypesenseCore\Console\Command\PingCommand;
+use DmLab\TypesenseCore\Exception\ConfigurationException;
+use DmLab\TypesenseCore\Exception\TransportException;
+use DmLab\TypesenseCore\Model\Client\Http\Response;
+use DmLab\TypesenseCore\Api\ConnectionSettingsInterface;
+use DmLab\TypesenseCore\Model\Client\Http\TransportInterface;
+use DmLab\TypesenseCore\Model\Config\Node;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;

@@ -1,10 +1,10 @@
 <?php
 /**
- * Copyright © MageDevGroup. All rights reserved.
+ * Copyright © DMLab. All rights reserved.
  */
 declare(strict_types=1);
 
-namespace MageDevGroup\TypesenseCore\Model\Client\Http;
+namespace DmLab\TypesenseCore\Model\Client\Http;
 
 /**
  * A raw HTTP response: status and body, undecoded.

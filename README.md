@@ -1,4 +1,4 @@
-# MageDevGroup_TypesenseCore
+# DmLab_TypesenseCore
 
 The Typesense access layer for Magento 2 (L0 of the Typesense suite): HTTP client, collection
 lifecycle, aliases, document writes, schema reconciler and a diagnostic CLI. Pure transport — it
@@ -12,7 +12,7 @@ knows nothing about the catalog and reads no Magento config. Installed transitiv
 - **Collections** — create / get / exists / drop / PATCH, plus zero-downtime alias `swap()`.
 - **Documents** — upsert, delete, delete-by-filter, chunked import.
 - **Schema reconciler** — decides in-place PATCH vs rebuild; holds no documents itself.
-- **CLI** — `magedevgroup:typesense:ping`, `magedevgroup:typesense:alias:status`.
+- **CLI** — `dmlab:typesense:ping`, `dmlab:typesense:alias:status`.
 
 Retry/failover apply to `GET`/`PUT`/`DELETE` only; `POST`/`PATCH` are delivered once — a replay
 could 409 a create that in fact succeeded.
@@ -40,4 +40,4 @@ Magento 2.4.x · PHP 8.3–8.5 · `magento/framework >=103.0` · Typesense 30.x 
 
 ## License
 
-OSL-3.0 © MageDevGroup.
+OSL-3.0 © DMLab.
