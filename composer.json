@@ -3,7 +3,7 @@
     "description": "Typesense access layer for Magento 2: HTTP client, collection lifecycle, aliases, document writes, schema reconciler, diagnostic CLI. No catalog or search-subsystem knowledge.",
     "type": "magento2-module",
     "license": "OSL-3.0",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "require": {
         "php": "~8.3.0||~8.4.0||~8.5.0",
         "magento/framework": ">=103.0",
