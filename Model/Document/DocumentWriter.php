@@ -1,6 +1,7 @@
 <?php
 /**
  * Copyright © DMLab. All rights reserved.
+ * Licensed under the Open Software License version 3.0 (OSL-3.0). See LICENSE.
  */
 declare(strict_types=1);
 
@@ -35,6 +36,12 @@ class DocumentWriter
     private const JSONL_CONTENT_TYPE = 'text/plain';
 
     /**
+     * Import actions whose second delivery leaves the same state, given every document carries its `id`;
+     * a `create` replay is a 409 per document.
+     */
+    private const REPLAY_SAFE_ACTIONS = [self::ACTION_UPSERT, self::ACTION_UPDATE, self::ACTION_EMPLACE];
+
+    /**
      * @param TypesenseClient $client
      * @param ConnectionSettingsInterface $settings
      */
@@ -47,6 +54,8 @@ class DocumentWriter
     /**
      * Write a single document, replacing it if the id already exists.
      *
+     * Replayed only with an `id`: without one the engine generates it, so a second delivery is a duplicate.
+     *
      * @param string $collection
      * @param array<string,mixed> $document
      * @return array<mixed> the stored document
@@ -58,7 +67,8 @@ class DocumentWriter
             'POST',
             $this->documentsPath($collection),
             $document,
-            ['action' => self::ACTION_UPSERT]
+            ['action' => self::ACTION_UPSERT],
+            replaySafe: $this->hasId($document) ? true : null
         );
     }
 
@@ -73,7 +83,8 @@ class DocumentWriter
      * @param iterable<array<string,mixed>> $documents
      * @param string $action one of the ACTION_* constants
      * @param int $batchSize documents per request
-     * @throws TypesenseException on a transport or HTTP failure; per-document failures are returned, not thrown
+     * @throws TypesenseException on a transport or HTTP failure only; per-document failures, including documents
+     *     that cannot be JSON-encoded, are returned, not thrown
      */
     public function importBatch(
         string $collection,
@@ -149,6 +160,9 @@ class DocumentWriter
     /**
      * POST one batch and fold its per-line outcome into the running totals.
      *
+     * Documents that cannot be encoded fail on their own and are left out of the body; response
+     * line `i` belongs to the `i`-th encoded document.
+     *
      * @param string $collection
      * @param array<int,array<string,mixed>> $batch
      * @param string $action
@@ -167,21 +181,56 @@ class DocumentWriter
         int &$failureCount,
         array &$errors
     ): void {
-        $response = $this->client->requestRaw(
-            'POST',
-            $this->documentsPath($collection) . '/import',
-            $this->encodeJsonl($batch),
-            self::JSONL_CONTENT_TYPE,
-            ['action' => $action],
-            $this->settings->getOperationTimeout()
-        );
+        $encoded = [];
+        $encodeErrors = [];
+        $replaySafe = in_array($action, self::REPLAY_SAFE_ACTIONS, true);
+        foreach ($batch as $index => $document) {
+            try {
+                $encoded[$index] = json_encode($document, JSON_THROW_ON_ERROR);
+                $replaySafe = $replaySafe && $this->hasId($document);
+            } catch (\JsonException $e) {
+                $encodeErrors[$index] = 'Unable to encode the document: ' . $e->getMessage();
+            }
+        }
 
-        // The engine answers with exactly one line per document. Anything past the batch
-        // length is not a result for a document we sent, and must not count as one.
-        $lines = array_slice($this->splitLines($response), 0, count($batch));
+        $lines = [];
+        if ($encoded !== []) {
+            $response = $this->client->requestRaw(
+                'POST',
+                $this->documentsPath($collection) . '/import',
+                implode("\n", $encoded),
+                self::JSONL_CONTENT_TYPE,
+                ['action' => $action],
+                $this->settings->getOperationTimeout(),
+                replaySafe: $replaySafe ? true : null
+            );
+            // The engine answers with exactly one line per document. Anything past the sent
+            // count is not a result for a document we sent, and must not count as one.
+            $lines = array_slice($this->splitLines($response), 0, count($encoded));
+        }
 
-        foreach ($lines as $index => $line) {
-            $decoded = json_decode($line, true);
+        $sentIndex = 0;
+        foreach ($batch as $index => $document) {
+            if (isset($encodeErrors[$index])) {
+                $this->collectFailure($failureCount, $errors, $offset + $index, $encodeErrors[$index], $document);
+                continue;
+            }
+
+            // A short response means documents went unaccounted for, which must never read
+            // as a clean import.
+            if (!array_key_exists($sentIndex, $lines)) {
+                $sentIndex++;
+                $this->collectFailure(
+                    $failureCount,
+                    $errors,
+                    $offset + $index,
+                    'The import response carried no result for this document.',
+                    $document
+                );
+                continue;
+            }
+
+            $decoded = json_decode($lines[$sentIndex++], true);
             $decoded = is_array($decoded) ? $decoded : [];
 
             if (($decoded['success'] ?? false) === true) {
@@ -194,20 +243,7 @@ class DocumentWriter
                 $errors,
                 $offset + $index,
                 is_string($decoded['error'] ?? null) ? $decoded['error'] : 'Unparsable import response.',
-                $decoded['document'] ?? ($batch[$index] ?? null)
-            );
-        }
-
-        // A short response means documents went unaccounted for, which must never read
-        // as a clean import.
-        $sent = count($batch);
-        for ($index = count($lines); $index < $sent; $index++) {
-            $this->collectFailure(
-                $failureCount,
-                $errors,
-                $offset + $index,
-                'The import response carried no result for this document.',
-                $batch[$index]
+                $decoded['document'] ?? $document
             );
         }
     }
@@ -235,31 +271,6 @@ class DocumentWriter
     }
 
     /**
-     * One JSON object per line.
-     *
-     * @param array<int,array<string,mixed>> $batch
-     * @throws TypesenseException
-     */
-    private function encodeJsonl(array $batch): string
-    {
-        $lines = [];
-        foreach ($batch as $document) {
-            try {
-                $lines[] = json_encode($document, JSON_THROW_ON_ERROR);
-            } catch (\JsonException $e) {
-                throw new TypesenseException(
-                    'Unable to encode a document for import: ' . $e->getMessage(),
-                    0,
-                    [],
-                    $e
-                );
-            }
-        }
-
-        return implode("\n", $lines);
-    }
-
-    /**
      * Lines of an import response, positionally aligned with the batch.
      *
      * Blank lines are kept, not filtered: callers index the batch by line position, so dropping
@@ -274,6 +285,16 @@ class DocumentWriter
         $trimmed = trim($response);
 
         return $trimmed === '' ? [] : (preg_split('/\R/', $trimmed) ?: []);
+    }
+
+    /**
+     * Whether a document names its own id, so a replay overwrites it instead of creating another.
+     *
+     * @param mixed $document
+     */
+    private function hasId(mixed $document): bool
+    {
+        return is_array($document) && is_string($document['id'] ?? null) && $document['id'] !== '';
     }
 
     /**

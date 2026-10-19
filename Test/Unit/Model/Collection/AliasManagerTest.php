@@ -1,6 +1,7 @@
 <?php
 /**
  * Copyright © DMLab. All rights reserved.
+ * Licensed under the Open Software License version 3.0 (OSL-3.0). See LICENSE.
  */
 declare(strict_types=1);
 
@@ -8,8 +9,10 @@ namespace DmLab\TypesenseCore\Test\Unit\Model\Collection;
 
 use DmLab\TypesenseCore\Exception\TypesenseException;
 use DmLab\TypesenseCore\Model\Client\TypesenseClient;
+use DmLab\TypesenseCore\Model\Collection\AliasLock;
 use DmLab\TypesenseCore\Model\Collection\AliasManager;
 use DmLab\TypesenseCore\Model\Collection\CollectionManager;
+use Magento\Framework\Lock\LockManagerInterface;
 use Magento\Framework\Stdlib\DateTime\DateTime;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -27,6 +30,18 @@ class AliasManagerTest extends TestCase
     /** @var DateTime|MockObject */
     private MockObject $dateTime;
 
+    /** @var LockManagerInterface|MockObject */
+    private MockObject $locks;
+
+    /** @var bool what `CollectionManager::exists()` answers */
+    private bool $exists = true;
+
+    /** @var bool what `LockManagerInterface::lock()` answers */
+    private bool $lockAcquired = true;
+
+    /** @var string[] lock calls, in order */
+    private array $lockLog = [];
+
     /** @var AliasManager */
     private AliasManager $manager;
 
@@ -34,8 +49,25 @@ class AliasManagerTest extends TestCase
     {
         $this->client = $this->createMock(TypesenseClient::class);
         $this->collections = $this->createMock(CollectionManager::class);
+        $this->collections->method('exists')->willReturnCallback(fn (): bool => $this->exists);
         $this->dateTime = $this->createMock(DateTime::class);
-        $this->manager = new AliasManager($this->client, $this->collections, $this->dateTime);
+        $this->locks = $this->createMock(LockManagerInterface::class);
+        $this->locks->method('lock')->willReturnCallback(function (string $name, int $timeout): bool {
+            $this->lockLog[] = 'lock ' . $name . ' ' . $timeout;
+
+            return $this->lockAcquired;
+        });
+        $this->locks->method('unlock')->willReturnCallback(function (string $name): bool {
+            $this->lockLog[] = 'unlock ' . $name;
+
+            return true;
+        });
+        $this->manager = new AliasManager(
+            $this->client,
+            $this->collections,
+            $this->dateTime,
+            new AliasLock($this->locks)
+        );
     }
 
     public function testGetListMapsAliasesToTheirTargets(): void
@@ -327,6 +359,61 @@ class AliasManagerTest extends TestCase
 
         // The swap itself stood: readers are on products_2 and only the old collection leaked.
         $this->assertTrue($repointed);
+    }
+
+    public function testSwapHoldsTheAliasLockAroundRepointingAndDropping(): void
+    {
+        $this->client->method('request')->willReturnCallback(
+            function (string $method): array {
+                $this->lockLog[] = $method;
+
+                return $method === 'GET' ? ['collection_name' => 'products_1'] : [];
+            }
+        );
+        $this->collections->method('drop')->willReturnCallback(function (): array {
+            $this->lockLog[] = 'DROP';
+
+            return [];
+        });
+
+        $this->manager->swap('products', 'products_2');
+
+        $name = 'dmlab_typesense_alias_' . hash('sha256', 'products');
+        $this->assertSame(['lock ' . $name . ' 60', 'GET', 'PUT', 'DROP', 'unlock ' . $name], $this->lockLog);
+    }
+
+    public function testSwapTouchesNothingWithoutTheLock(): void
+    {
+        $this->lockAcquired = false;
+        $this->client->expects($this->never())->method('request');
+        $this->collections->expects($this->never())->method('drop');
+
+        try {
+            $this->manager->swap('products', 'products_2');
+            $this->fail('A lock timeout should have thrown.');
+        } catch (TypesenseException $e) {
+            $this->assertStringContainsString('Timed out waiting for the lock on alias "products"', $e->getMessage());
+        }
+
+        // Never acquired, so never released.
+        $this->assertCount(1, $this->lockLog);
+    }
+
+    public function testSwapOntoAMissingCollectionLeavesTheAliasAloneAndReleasesTheLock(): void
+    {
+        // A prune dropped the build before its swap; the engine would accept an alias pointing at nothing.
+        $this->exists = false;
+        $this->client->expects($this->never())->method('request');
+        $this->collections->expects($this->never())->method('drop');
+
+        try {
+            $this->manager->swap('products', 'products_2');
+            $this->fail('Swapping onto a missing collection should have thrown.');
+        } catch (TypesenseException $e) {
+            $this->assertSame(404, $e->getStatusCode());
+        }
+
+        $this->assertStringStartsWith('unlock ', end($this->lockLog));
     }
 
     public function testGenerateCollectionNameSuffixesTheAliasWithTheCurrentTimestamp(): void

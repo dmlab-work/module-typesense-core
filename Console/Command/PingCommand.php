@@ -1,6 +1,7 @@
 <?php
 /**
  * Copyright © DMLab. All rights reserved.
+ * Licensed under the Open Software License version 3.0 (OSL-3.0). See LICENSE.
  */
 declare(strict_types=1);
 
@@ -8,6 +9,8 @@ namespace DmLab\TypesenseCore\Console\Command;
 
 use DmLab\TypesenseCore\Api\ConnectionSettingsInterface;
 use DmLab\TypesenseCore\Exception\ConfigurationException;
+use DmLab\TypesenseCore\Exception\TransportException;
+use DmLab\TypesenseCore\Model\Client\Http\Response;
 use DmLab\TypesenseCore\Model\Client\Http\TransportInterface;
 use DmLab\TypesenseCore\Model\Config\Node;
 use Symfony\Component\Console\Command\Command;
@@ -57,36 +60,48 @@ class PingCommand extends Command
     {
         try {
             $nodes = $this->settings->getNodes();
-            $apiKey = $this->settings->getApiKey();
         } catch (ConfigurationException $e) {
             $output->writeln('<error>' . $e->getMessage() . '</error>');
 
             return Command::FAILURE;
         }
 
-        $down = 0;
+        try {
+            $apiKey = $this->settings->getApiKey();
+        } catch (ConfigurationException $e) {
+            // `/health` needs no key, so a missing key still leaves the nodes worth probing.
+            $apiKey = null;
+        }
+
+        $ok = true;
         foreach ($nodes as $node) {
             if (!$this->reportNode($node, $apiKey, $output)) {
-                $down++;
+                $ok = false;
             }
         }
 
-        return $down === 0 ? Command::SUCCESS : Command::FAILURE;
+        if ($apiKey === null) {
+            $output->writeln('<error>API key not configured — health only</error>');
+            $ok = false;
+        }
+
+        return $ok ? Command::SUCCESS : Command::FAILURE;
     }
 
     /**
-     * Print one node's line and say whether it is up.
+     * Print one node's line and say whether it is up and, when a key is set, accepts it.
      *
      * @param Node $node
-     * @param string $apiKey
+     * @param string|null $apiKey null when not configured: health only
      * @param OutputInterface $output
      */
-    private function reportNode(Node $node, string $apiKey, OutputInterface $output): bool
+    private function reportNode(Node $node, #[\SensitiveParameter] ?string $apiKey, OutputInterface $output): bool
     {
         $baseUrl = $node->getBaseUrl();
 
         try {
-            $health = $this->get($baseUrl . '/health', $apiKey);
+            // Sent without the key: `/health` ignores it, so a wrong key must not read as a dead node.
+            $health = $this->decode($this->send($baseUrl . '/health', null));
         } catch (\Throwable $e) {
             $output->writeln(sprintf('<error>%s DOWN: %s</error>', $baseUrl, $e->getMessage()));
 
@@ -99,50 +114,75 @@ class PingCommand extends Command
             return false;
         }
 
-        $output->writeln(sprintf('<info>%s OK</info> (version %s)', $baseUrl, $this->readVersion($baseUrl, $apiKey)));
+        if ($apiKey === null) {
+            $output->writeln(sprintf('<info>%s OK</info>', $baseUrl));
+
+            return true;
+        }
+
+        return $this->reportKey($baseUrl, $apiKey, $output);
+    }
+
+    /**
+     * Check the key against a healthy node's `/debug` and print the node's line.
+     *
+     * Only 401/403 fail the node: any other `/debug` failure leaves it up with an unknown version.
+     *
+     * @param string $baseUrl
+     * @param string $apiKey
+     * @param OutputInterface $output
+     */
+    private function reportKey(string $baseUrl, #[\SensitiveParameter] string $apiKey, OutputInterface $output): bool
+    {
+        $version = 'unknown';
+        try {
+            $response = $this->send($baseUrl . '/debug', $apiKey);
+            $status = $response->getStatusCode();
+            if ($status === 401 || $status === 403) {
+                $output->writeln(sprintf('<error>%s KEY REJECTED (HTTP %d)</error>', $baseUrl, $status));
+
+                return false;
+            }
+
+            $reported = $this->decode($response)['version'] ?? null;
+            if (is_string($reported) && $reported !== '') {
+                $version = $reported;
+            }
+        } catch (\Throwable $e) {
+            $version = 'unknown';
+        }
+
+        $output->writeln(sprintf('<info>%s OK</info> (version %s)', $baseUrl, $version));
 
         return true;
     }
 
     /**
-     * The node's version, or `unknown` when `/debug` does not say.
+     * One GET against one node, with the key header only when a key is given.
      *
-     * A node that answers `/health` but not `/debug` is still up: the version is decoration.
-     *
-     * @param string $baseUrl
-     * @param string $apiKey
+     * @param string $url
+     * @param string|null $apiKey
+     * @throws TransportException
      */
-    private function readVersion(string $baseUrl, string $apiKey): string
+    private function send(string $url, #[\SensitiveParameter] ?string $apiKey): Response
     {
-        try {
-            $debug = $this->get($baseUrl . '/debug', $apiKey);
-        } catch (\Throwable $e) {
-            return 'unknown';
+        $headers = ['Accept' => 'application/json'];
+        if ($apiKey !== null) {
+            $headers['X-TYPESENSE-API-KEY'] = $apiKey;
         }
 
-        $version = $debug['version'] ?? null;
-
-        return is_string($version) && $version !== '' ? $version : 'unknown';
+        return $this->transport->send('GET', $url, $headers, null, self::TIMEOUT);
     }
 
     /**
-     * One authenticated GET against one node, decoded.
+     * The decoded body of a 2xx response.
      *
-     * @param string $url
-     * @param string $apiKey
+     * @param Response $response
      * @return array<mixed>
      * @throws \RuntimeException on a non-2xx or an undecodable body
      */
-    private function get(string $url, string $apiKey): array
+    private function decode(Response $response): array
     {
-        $response = $this->transport->send(
-            'GET',
-            $url,
-            ['X-TYPESENSE-API-KEY' => $apiKey, 'Accept' => 'application/json'],
-            null,
-            self::TIMEOUT
-        );
-
         if (!$response->isSuccessful()) {
             throw new \RuntimeException('HTTP ' . $response->getStatusCode() . ' ' . trim($response->getBody()));
         }

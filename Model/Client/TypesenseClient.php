@@ -1,6 +1,7 @@
 <?php
 /**
  * Copyright © DMLab. All rights reserved.
+ * Licensed under the Open Software License version 3.0 (OSL-3.0). See LICENSE.
  */
 declare(strict_types=1);
 
@@ -11,6 +12,8 @@ use DmLab\TypesenseCore\Exception\TransportException;
 use DmLab\TypesenseCore\Exception\TypesenseException;
 use DmLab\TypesenseCore\Model\Client\Http\Response;
 use DmLab\TypesenseCore\Model\Client\Http\TransportInterface;
+use DmLab\TypesenseCore\Model\Config\Node;
+use Psr\Log\LoggerInterface;
 
 /**
  * The module's only door to the Typesense REST API.
@@ -30,23 +33,38 @@ class TypesenseClient
      *
      * A method alone does not settle it — `DELETE /documents?filter_by=…` matches at send time,
      * so a replay removes whatever matches *then*, including documents written in between. Such
-     * a call passes `$replaySafe = false` and is treated as a write.
+     * a call passes `$replaySafe = false`; an idempotent POST (an upsert import) passes `true`.
      *
-     * Everything else is sent exactly once, to one node. The transport cannot tell a request that
-     * never left from one whose response was lost (Magento's cURL adapter exposes an error string,
-     * not an errno), so a replayed POST is a second key in `/keys`, a 409 on a `create` that in fact
-     * succeeded, or a half-applied schema PATCH re-dropping a dropped field. Losing write failover
-     * is the cheaper mistake: it fails loudly, whereas a duplicate write corrupts quietly.
+     * Everything else is delivered at most once. A request whose response was lost may have been
+     * applied, so a replayed POST is a second key in `/keys`, a 409 on a `create` that in fact
+     * succeeded, or a half-applied schema PATCH re-dropping a dropped field. Only a request that
+     * provably never left ({@see TransportException::isRequestSent()}, from the cURL errno) moves
+     * on to the next node.
      */
     private const RETRYABLE_METHODS = ['GET', 'HEAD', 'PUT', 'DELETE'];
+
+    /** A node that timed out this many times in one call is not tried again in that call. */
+    private const MAX_TIMEOUTS_PER_NODE = 2;
+
+    /** Seconds; cURL's millisecond resolution cannot honour less, so the deadline counts as spent. */
+    private const MIN_ATTEMPT_TIMEOUT = 0.001;
+
+    private const BACKOFF_BASE_US = 100_000;
+    private const BACKOFF_CAP_US = 1_000_000;
 
     /**
      * @param ConnectionSettingsInterface $settings
      * @param TransportInterface $transport
+     * @param NodeHealthRegistry $nodeHealth
+     * @param Clock $clock
+     * @param LoggerInterface $logger
      */
     public function __construct(
         private readonly ConnectionSettingsInterface $settings,
-        private readonly TransportInterface $transport
+        private readonly TransportInterface $transport,
+        private readonly NodeHealthRegistry $nodeHealth,
+        private readonly Clock $clock,
+        private readonly LoggerInterface $logger
     ) {
     }
 
@@ -58,8 +76,9 @@ class TypesenseClient
      * @param array<string,mixed>|null $body encoded as a JSON object
      * @param array<string,scalar> $query query parameters
      * @param int|null $timeout seconds; falls back to the configured timeout
-     * @param int|null $maxAttempts overrides the configured retry count; ignored for non-retryable methods
-     * @param bool $replaySafe false forces a single delivery to a single node even for a retryable method
+     * @param int|null $maxAttempts overrides the configured retry count; ignored for non-replay-safe calls
+     * @param bool|null $replaySafe null decides by method, true allows replay for any method, false forbids it
+     * @param int|null $deadline total seconds for the call across all attempts; defaults to timeout × 2
      * @return array<mixed>
      * @throws TypesenseException on a non-2xx response, an undecodable body, or no reachable node
      */
@@ -70,7 +89,8 @@ class TypesenseClient
         array $query = [],
         ?int $timeout = null,
         ?int $maxAttempts = null,
-        bool $replaySafe = true
+        ?bool $replaySafe = null,
+        ?int $deadline = null
     ): array {
         $response = $this->send(
             $method,
@@ -80,7 +100,8 @@ class TypesenseClient
             $query,
             $timeout,
             $maxAttempts,
-            $replaySafe
+            $replaySafe,
+            $deadline
         );
 
         return $this->decode($response, $method, $path);
@@ -98,6 +119,9 @@ class TypesenseClient
      * @param string $contentType
      * @param array<string,scalar> $query query parameters
      * @param int|null $timeout seconds; falls back to the configured timeout
+     * @param int|null $maxAttempts overrides the configured retry count; ignored for non-replay-safe calls
+     * @param bool|null $replaySafe null decides by method, true allows replay for any method, false forbids it
+     * @param int|null $deadline total seconds for the call across all attempts; defaults to timeout × 2
      * @throws TypesenseException on a non-2xx response or no reachable node
      */
     public function requestRaw(
@@ -106,15 +130,28 @@ class TypesenseClient
         string $body,
         string $contentType,
         array $query = [],
-        ?int $timeout = null
+        ?int $timeout = null,
+        ?int $maxAttempts = null,
+        ?bool $replaySafe = null,
+        ?int $deadline = null
     ): string {
-        return $this->send($method, $path, $body, $contentType, $query, $timeout)->getBody();
+        return $this->send(
+            $method,
+            $path,
+            $body,
+            $contentType,
+            $query,
+            $timeout,
+            $maxAttempts,
+            $replaySafe,
+            $deadline
+        )->getBody();
     }
 
     /**
-     * Try every node, then retry the whole list up to the configured retry count.
+     * Try every node, then retry the whole list up to the configured retry count, within a deadline.
      *
-     * Retryable methods only; anything else gets a single delivery to a single node.
+     * A non-replay-safe call gets one round and leaves a node only when the request provably never left.
      *
      * @param string $method
      * @param string $path
@@ -123,7 +160,8 @@ class TypesenseClient
      * @param array<string,scalar> $query
      * @param int|null $timeout
      * @param int|null $maxAttempts
-     * @param bool $replaySafe
+     * @param bool|null $replaySafe
+     * @param int|null $deadline
      * @throws TypesenseException
      */
     private function send(
@@ -134,34 +172,91 @@ class TypesenseClient
         array $query,
         ?int $timeout,
         ?int $maxAttempts = null,
-        bool $replaySafe = true
+        ?bool $replaySafe = null,
+        ?int $deadline = null
     ): Response {
         $method = strtoupper($method);
         $headers = $this->buildHeaders($encodedBody !== null ? $contentType ?? 'application/json' : null);
         $timeout ??= $this->settings->getConnectionTimeout();
+        $budget = $deadline ?? $timeout * 2;
+        $deadlineAt = $this->clock->now() + $budget;
+        $logPath = '/' . ltrim($path, '/');
         $suffix = $this->buildPath($path, $query);
         $nodes = $this->settings->getNodes();
 
-        $retryable = $replaySafe && in_array($method, self::RETRYABLE_METHODS, true);
-        if (!$retryable) {
-            // One node, one delivery: see self::RETRYABLE_METHODS.
-            $nodes = array_slice($nodes, 0, 1);
-        }
+        $retryable = $replaySafe ?? in_array($method, self::RETRYABLE_METHODS, true);
         $attempts = $retryable ? $maxAttempts ?? $this->settings->getRetryCount() + 1 : 1;
 
         // Kept apart: a node answering 5xx and a node being unreachable are different
         // diagnoses, and node order must not decide which one the caller is told about.
         $lastHttpError = null;
         $lastTransportError = null;
+        /** @var array<string,int> $timeouts per base URL */
+        $timeouts = [];
+        // Read once per call and kept in step locally. A node marked before the call gets one attempt.
+        $preMarked = $this->nodeHealth->marks($nodes);
+        $marked = $preMarked;
+        /** @var array<string,true> $exhausted base URLs not to try again in this call */
+        $exhausted = [];
 
-        for ($attempt = 0; $attempt < $attempts; $attempt++) {
-            foreach ($nodes as $node) {
-                $url = $node->getBaseUrl() . $suffix;
+        for ($round = 0; $round < $attempts; $round++) {
+            // Re-ordered per round: a node marked down in this call drops behind its peers.
+            $roundNodes = array_values(array_filter(
+                $this->nodeHealth->order($nodes, $marked),
+                static fn (Node $node): bool => !isset($exhausted[$node->getBaseUrl()])
+                    && ($timeouts[$node->getBaseUrl()] ?? 0) < self::MAX_TIMEOUTS_PER_NODE
+            ));
+            if ($roundNodes === []) {
+                break;
+            }
+            if ($round > 0) {
+                $this->backoff($round, $deadlineAt);
+            }
+
+            foreach ($roundNodes as $node) {
+                $remaining = $deadlineAt - $this->clock->now();
+                if ($remaining < self::MIN_ATTEMPT_TIMEOUT) {
+                    $previous = $lastHttpError ?? $lastTransportError;
+                    throw new TransportException(
+                        sprintf(
+                            'Typesense %s %s exceeded its %ds deadline: %s',
+                            $method,
+                            $logPath,
+                            $budget,
+                            $previous?->getMessage() ?? 'no attempt completed'
+                        ),
+                        0,
+                        [],
+                        $previous
+                    );
+                }
+
+                $baseUrl = $node->getBaseUrl();
+                $url = $baseUrl . $suffix;
+                $attemptTimeout = min((float)$timeout, $remaining);
                 try {
-                    $response = $this->transport->send($method, $url, $headers, $encodedBody, $timeout);
+                    $response = $this->transport->send($method, $url, $headers, $encodedBody, $attemptTimeout);
                 } catch (TransportException $e) {
                     // The node is unreachable; a different one may not be.
+                    $this->logFailure(
+                        $baseUrl,
+                        $method,
+                        $logPath,
+                        str_replace($url, $baseUrl . $logPath, $e->getMessage())
+                    );
+                    $this->nodeHealth->markDown($node);
+                    $marked[$baseUrl] = true;
+                    if (isset($preMarked[$baseUrl])) {
+                        $exhausted[$baseUrl] = true;
+                    }
+                    if ($e->isTimeout()) {
+                        $timeouts[$baseUrl] = ($timeouts[$baseUrl] ?? 0) + 1;
+                    }
                     $lastTransportError = $e;
+                    if (!$retryable && $e->isRequestSent()) {
+                        // It may have been applied: see self::RETRYABLE_METHODS.
+                        break 2;
+                    }
                     continue;
                 }
 
@@ -169,11 +264,24 @@ class TypesenseClient
                     // A 4xx means the node is up and disagrees; another node answers the same.
                     // A 5xx means this node is lagging, starting up or overloaded — a peer may serve it.
                     if ($response->getStatusCode() >= 500) {
+                        $this->logFailure($baseUrl, $method, $logPath, 'HTTP ' . $response->getStatusCode());
+                        $this->nodeHealth->markDown($node);
+                        $marked[$baseUrl] = true;
+                        if (isset($preMarked[$baseUrl])) {
+                            $exhausted[$baseUrl] = true;
+                        }
                         $lastHttpError = $this->mapError($response, $method, $suffix);
+                        if (!$retryable) {
+                            throw $lastHttpError;
+                        }
                         continue;
                     }
 
                     throw $this->mapError($response, $method, $suffix);
+                }
+
+                if (isset($marked[$baseUrl])) {
+                    $this->nodeHealth->markUp($node);
                 }
 
                 return $response;
@@ -198,6 +306,32 @@ class TypesenseClient
             [],
             $lastTransportError
         );
+    }
+
+    /**
+     * Sleep a jittered, exponentially growing pause before a retry round, never past the deadline.
+     *
+     * @param int $round 1 for the first retry round
+     * @param float $deadlineAt
+     */
+    private function backoff(int $round, float $deadlineAt): void
+    {
+        $cap = (int)min(self::BACKOFF_BASE_US * 2 ** ($round - 1), self::BACKOFF_CAP_US);
+        $remainingUs = (int)(($deadlineAt - $this->clock->now()) * 1_000_000);
+        $this->clock->sleep(max(0, min(random_int(0, $cap), $remainingUs)));
+    }
+
+    /**
+     * One warning per failed node; never headers or body, and the path without its query string.
+     *
+     * @param string $baseUrl
+     * @param string $method
+     * @param string $path
+     * @param string $reason
+     */
+    private function logFailure(string $baseUrl, string $method, string $path, string $reason): void
+    {
+        $this->logger->warning(sprintf('Typesense node %s failed for %s %s: %s', $baseUrl, $method, $path, $reason));
     }
 
     /**

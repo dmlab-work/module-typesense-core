@@ -1,6 +1,7 @@
 <?php
 /**
  * Copyright © DMLab. All rights reserved.
+ * Licensed under the Open Software License version 3.0 (OSL-3.0). See LICENSE.
  */
 declare(strict_types=1);
 
@@ -25,11 +26,13 @@ class AliasManager
      * @param TypesenseClient $client
      * @param CollectionManager $collections
      * @param DateTime $dateTime
+     * @param AliasLock $lock
      */
     public function __construct(
         private readonly TypesenseClient $client,
         private readonly CollectionManager $collections,
-        private readonly DateTime $dateTime
+        private readonly DateTime $dateTime,
+        private readonly AliasLock $lock
     ) {
     }
 
@@ -121,17 +124,33 @@ class AliasManager
      * The old collection is dropped only after the alias moved, so a failure mid-way
      * leaves readers on a collection that still exists.
      *
-     * Resolve-then-drop is not atomic: two swaps of the same alias overlapping both see the
-     * same predecessor and both drop it. The loser's 404 is the state it wanted, so it is not
-     * an error — serialise callers if the orphaned build of the loser also matters.
+     * Runs under the alias's {@see AliasLock}, so a prune never sees the new collection unaliased and
+     * drops it after the swap. It checks the new collection exists, because the engine accepts an alias
+     * pointing at nothing (e.g. a build pruned before its swap).
      *
      * @param string $alias
      * @param string $newCollection
      * @return string|null the dropped collection, or null when there was nothing to drop
-     * @throws TypesenseException
+     * @throws TypesenseException 404 when the new collection does not exist; the alias is left alone
      */
     public function swap(string $alias, string $newCollection): ?string
     {
+        return $this->lock->synchronized($alias, fn (): ?string => $this->repoint($alias, $newCollection));
+    }
+
+    /**
+     * The unlocked body of {@see swap()}.
+     *
+     * @param string $alias
+     * @param string $newCollection
+     * @throws TypesenseException
+     */
+    private function repoint(string $alias, string $newCollection): ?string
+    {
+        if (!$this->collections->exists($newCollection)) {
+            throw new TypesenseException(sprintf('Collection "%s" to swap in does not exist.', $newCollection), 404);
+        }
+
         $previous = $this->resolve($alias);
 
         $this->upsert($alias, $newCollection);
@@ -140,6 +159,7 @@ class AliasManager
             return null;
         }
 
+        // Already gone is the state this swap wanted.
         try {
             $this->collections->drop($previous);
         } catch (TypesenseException $e) {

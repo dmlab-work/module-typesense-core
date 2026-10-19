@@ -1,6 +1,7 @@
 <?php
 /**
  * Copyright © DMLab. All rights reserved.
+ * Licensed under the Open Software License version 3.0 (OSL-3.0). See LICENSE.
  */
 declare(strict_types=1);
 
@@ -11,6 +12,7 @@ use DmLab\TypesenseCore\Api\ConnectionSettingsInterface;
 use DmLab\TypesenseCore\Model\Client\TypesenseClient;
 use DmLab\TypesenseCore\Model\Document\DocumentWriter;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
@@ -43,6 +45,110 @@ class DocumentWriterTest extends TestCase
         $document = ['id' => '1', 'sku' => 'ABC'];
 
         $this->assertSame($document, $this->writer->upsert('products', $document));
+    }
+
+    public function testUpsertIsSentReplaySafe(): void
+    {
+        $this->client->expects($this->once())
+            ->method('request')
+            ->with('POST', '/collections/products/documents', ['id' => '1'], ['action' => 'upsert'], null, null, true)
+            ->willReturn([]);
+
+        $this->writer->upsert('products', ['id' => '1']);
+    }
+
+    /**
+     * @return array<string,array{0:string,1:bool|null}>
+     */
+    public static function importReplaySafetyProvider(): array
+    {
+        return [
+            'upsert' => [DocumentWriter::ACTION_UPSERT, true],
+            'update' => [DocumentWriter::ACTION_UPDATE, true],
+            'emplace' => [DocumentWriter::ACTION_EMPLACE, true],
+            'create decided by method' => [DocumentWriter::ACTION_CREATE, null],
+        ];
+    }
+
+    #[DataProvider('importReplaySafetyProvider')]
+    public function testImportReplaySafetyFollowsTheAction(string $action, ?bool $replaySafe): void
+    {
+        $this->client->expects($this->once())
+            ->method('requestRaw')
+            ->with(
+                'POST',
+                '/collections/products/documents/import',
+                '{"id":"1"}',
+                'text/plain',
+                ['action' => $action],
+                self::OPERATION_TIMEOUT,
+                null,
+                $replaySafe
+            )
+            ->willReturn('{"success":true}');
+
+        $this->writer->importBatch('products', [['id' => '1']], $action);
+    }
+
+    #[DataProvider('documentsWithoutAStableIdProvider')]
+    public function testUpsertWithoutAnIdIsLeftToTheMethodDefault(array $document): void
+    {
+        $this->client->expects($this->once())
+            ->method('request')
+            ->with('POST', '/collections/products/documents', $document, ['action' => 'upsert'], null, null, null)
+            ->willReturn([]);
+
+        $this->writer->upsert('products', $document);
+    }
+
+    /**
+     * @return array<string,array{array<string,mixed>}>
+     */
+    public static function documentsWithoutAStableIdProvider(): array
+    {
+        return [
+            'no id' => [['sku' => 'ABC']],
+            'empty id' => [['id' => '', 'sku' => 'ABC']],
+            'non-string id' => [['id' => 1, 'sku' => 'ABC']],
+        ];
+    }
+
+    public function testImportWithADocumentMissingItsIdIsNotReplayed(): void
+    {
+        $this->client->expects($this->once())
+            ->method('requestRaw')
+            ->with(
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                null,
+                null
+            )
+            ->willReturn("{\"success\":true}\n{\"success\":true}");
+
+        $this->writer->importBatch('products', [['id' => '1'], ['sku' => 'ABC']], DocumentWriter::ACTION_EMPLACE);
+    }
+
+    public function testImportIdCheckIgnoresDocumentsLeftOutAsUnencodable(): void
+    {
+        $this->client->expects($this->once())
+            ->method('requestRaw')
+            ->with(
+                $this->anything(),
+                $this->anything(),
+                '{"id":"1"}',
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                null,
+                true
+            )
+            ->willReturn('{"success":true}');
+
+        $this->writer->importBatch('products', [['id' => '1'], ['price' => INF]]);
     }
 
     public function testUpsertEncodesTheCollectionIntoThePath(): void
@@ -337,6 +443,108 @@ class DocumentWriterTest extends TestCase
         $this->assertSame(0, $result->getSuccessCount());
         $this->assertSame(2, $result->getFailureCount());
         $this->assertTrue($result->hasFailures());
+    }
+
+    public function testImportReportsAnUnencodableDocumentAndSendsTheRest(): void
+    {
+        $invalid = ['id' => '2', 'name' => "bad \xB1 utf8"];
+
+        $this->client->expects($this->once())
+            ->method('requestRaw')
+            ->with($this->anything(), $this->anything(), "{\"id\":\"1\"}\n{\"id\":\"3\"}")
+            ->willReturn("{\"success\":true}\n{\"success\":true}");
+
+        $result = $this->writer->importBatch('products', [['id' => '1'], $invalid, ['id' => '3']]);
+
+        $this->assertSame(2, $result->getSuccessCount());
+        $this->assertSame(1, $result->getFailureCount());
+        $this->assertSame(
+            [[
+                'line' => 1,
+                'error' => 'Unable to encode the document: Malformed UTF-8 characters, possibly incorrectly encoded',
+                'document' => $invalid,
+            ]],
+            $result->getErrors()
+        );
+    }
+
+    public function testImportReportsANanValueAsAnEncodeFailure(): void
+    {
+        $this->client->method('requestRaw')->willReturn('{"success":true}');
+
+        $result = $this->writer->importBatch('products', [['id' => '1', 'price' => NAN], ['id' => '2']]);
+
+        $this->assertSame(1, $result->getSuccessCount());
+        $this->assertSame(1, $result->getFailureCount());
+        $this->assertSame(0, $result->getErrors()[0]['line']);
+        $this->assertStringStartsWith('Unable to encode the document: Inf and NaN', $result->getErrors()[0]['error']);
+    }
+
+    public function testImportOfAWhollyUnencodableBatchSendsNoRequest(): void
+    {
+        $this->client->expects($this->never())->method('requestRaw');
+
+        $result = $this->writer->importBatch('products', [['price' => INF], ['name' => "\xB1"]]);
+
+        $this->assertSame(0, $result->getSuccessCount());
+        $this->assertSame(2, $result->getFailureCount());
+        $this->assertSame([0, 1], array_column($result->getErrors(), 'line'));
+    }
+
+    public function testImportKeepsStreamLinesAcrossBatchesWithEncodeFailures(): void
+    {
+        $bodies = [];
+        $this->client->method('requestRaw')->willReturnCallback(
+            static function (string $method, string $path, string $body) use (&$bodies): string {
+                $bodies[] = $body;
+
+                return str_contains($body, '"5"')
+                    ? '{"success":false,"error":"Bad."}'
+                    : '{"success":true}';
+            }
+        );
+
+        $documents = [['id' => '1'], ['price' => NAN], ['price' => NAN], ['id' => '4'], ['id' => '5']];
+        $result = $this->writer->importBatch('products', $documents, 'upsert', 2);
+
+        $this->assertSame(['{"id":"1"}', '{"id":"4"}', '{"id":"5"}'], $bodies);
+        $this->assertSame(2, $result->getSuccessCount());
+        $this->assertSame(3, $result->getFailureCount());
+        $this->assertSame([1, 2, 4], array_column($result->getErrors(), 'line'));
+        $this->assertSame(['id' => '5'], $result->getErrors()[2]['document']);
+    }
+
+    public function testImportMapsAResponseFailureAfterASkippedDocumentToTheRightDocument(): void
+    {
+        // Response line 1 belongs to the third document: the second was never sent.
+        $this->client->method('requestRaw')->willReturn(
+            "{\"success\":true}\n{\"success\":false,\"error\":\"Bad id\"}\n{\"success\":true}"
+        );
+
+        $documents = [['id' => '1'], ['price' => NAN], ['id' => '3'], ['id' => '4']];
+        $result = $this->writer->importBatch('products', $documents);
+
+        $this->assertSame(2, $result->getSuccessCount());
+        $this->assertSame(2, $result->getFailureCount());
+        $this->assertSame([1, 2], array_column($result->getErrors(), 'line'));
+        $this->assertSame('Bad id', $result->getErrors()[1]['error']);
+        $this->assertSame(['id' => '3'], $result->getErrors()[1]['document']);
+    }
+
+    public function testImportCountsAShortResponseAgainstTheEncodedDocumentsOnly(): void
+    {
+        $this->client->method('requestRaw')->willReturn('{"success":true}');
+
+        $result = $this->writer->importBatch('products', [['price' => NAN], ['id' => '2'], ['id' => '3']]);
+
+        $this->assertSame(1, $result->getSuccessCount());
+        $this->assertSame(2, $result->getFailureCount());
+        $this->assertSame([0, 2], array_column($result->getErrors(), 'line'));
+        $this->assertStringStartsWith('Unable to encode the document: ', $result->getErrors()[0]['error']);
+        $this->assertSame(
+            'The import response carried no result for this document.',
+            $result->getErrors()[1]['error']
+        );
     }
 
     public function testImportRejectsANonPositiveBatchSize(): void

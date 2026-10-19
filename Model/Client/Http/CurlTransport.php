@@ -1,6 +1,7 @@
 <?php
 /**
  * Copyright © DMLab. All rights reserved.
+ * Licensed under the Open Software License version 3.0 (OSL-3.0). See LICENSE.
  */
 declare(strict_types=1);
 
@@ -27,7 +28,14 @@ class CurlTransport implements TransportInterface
      * Establishing a TCP connection is fast or never; capping it at the caller's total
      * budget would let a long write (import, schema PATCH) wait minutes on a dead node.
      */
-    private const CONNECT_TIMEOUT = 5;
+    private const CONNECT_TIMEOUT_MS = 5000;
+
+    /**
+     * CURLE_COULDNT_RESOLVE_HOST, CURLE_COULDNT_CONNECT: the request never left.
+     */
+    private const NOT_SENT_ERRNOS = [6, 7];
+
+    private const CURLE_OPERATION_TIMEDOUT = 28;
 
     /**
      * @param CurlFactory $curlFactory
@@ -42,19 +50,27 @@ class CurlTransport implements TransportInterface
     public function send(
         string $method,
         string $url,
-        array $headers = [],
+        #[\SensitiveParameter] array $headers = [],
         ?string $body = null,
-        int $timeout = 5
+        float $timeout = 5
     ): Response {
         $method = strtoupper($method);
         $curl = $this->curlFactory->create();
 
         try {
+            // Floored so an attempt never outlasts the caller's remaining deadline.
+            $timeoutMs = max(1, (int)floor($timeout * 1000));
             $options = [
-                CURLOPT_TIMEOUT => $timeout,
-                CURLOPT_CONNECTTIMEOUT => min(self::CONNECT_TIMEOUT, $timeout),
+                CURLOPT_TIMEOUT_MS => $timeoutMs,
+                CURLOPT_CONNECTTIMEOUT_MS => min(self::CONNECT_TIMEOUT_MS, $timeoutMs),
+                // Without it a sub-second timeout aborts at once under the signal-based DNS resolver.
+                CURLOPT_NOSIGNAL => true,
             ];
-            if (!in_array($method, self::NATIVE_METHODS, true)) {
+            if ($method === 'HEAD') {
+                // Without NOBODY cURL waits for a body a HEAD response never has, until timeout.
+                $options[CURLOPT_CUSTOMREQUEST] = $method;
+                $options[CURLOPT_NOBODY] = true;
+            } elseif (!in_array($method, self::NATIVE_METHODS, true)) {
                 // write() only branches on the native verbs; PATCH must be wired up itself.
                 $options[CURLOPT_CUSTOMREQUEST] = $method;
                 $options[CURLOPT_POSTFIELDS] = (string)$body;
@@ -66,8 +82,19 @@ class CurlTransport implements TransportInterface
 
             $raw = $curl->read();
             if ($raw === '') {
+                // Read before close(): closing drops the handle and with it the error state.
+                $errno = (int)$curl->getErrno();
+                $error = (string)$curl->getError();
+                $pretransfer = (float)$curl->getInfo(CURLINFO_PRETRANSFER_TIME);
+                $notSent = in_array($errno, self::NOT_SENT_ERRNOS, true)
+                    || ($errno === self::CURLE_OPERATION_TIMEDOUT && $pretransfer == 0.0);
                 throw new TransportException(
-                    sprintf('Typesense request to %s failed: %s', $url, $curl->getError() ?: 'no response')
+                    sprintf('Typesense request to %s failed: %s', $url, $error ?: 'no response'),
+                    0,
+                    [],
+                    null,
+                    $errno,
+                    !$notSent
                 );
             }
         } finally {
@@ -86,7 +113,7 @@ class CurlTransport implements TransportInterface
      * @param array<string,string> $headers
      * @return string[]
      */
-    private function flattenHeaders(array $headers): array
+    private function flattenHeaders(#[\SensitiveParameter] array $headers): array
     {
         $lines = [];
         foreach ($headers as $name => $value) {

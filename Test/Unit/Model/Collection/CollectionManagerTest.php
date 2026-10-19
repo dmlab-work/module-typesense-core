@@ -1,6 +1,7 @@
 <?php
 /**
  * Copyright © DMLab. All rights reserved.
+ * Licensed under the Open Software License version 3.0 (OSL-3.0). See LICENSE.
  */
 declare(strict_types=1);
 
@@ -27,7 +28,7 @@ class CollectionManagerTest extends TestCase
     protected function setUp(): void
     {
         $this->client = $this->createMock(TypesenseClient::class);
-        $config = $this->createMock(ConnectionSettingsInterface::class);
+        $config = $this->createStub(ConnectionSettingsInterface::class);
         $config->method('getOperationTimeout')->willReturn(self::OPERATION_TIMEOUT);
         $this->manager = new CollectionManager($this->client, $config);
     }
@@ -132,6 +133,45 @@ class CollectionManagerTest extends TestCase
         $this->expectExceptionCode(404);
 
         $this->manager->get('missing');
+    }
+
+    public function testGetListQueriesWithoutFieldsAndReturnsSortedNames(): void
+    {
+        $this->client->expects($this->once())
+            ->method('request')
+            ->with('GET', '/collections', null, ['exclude_fields' => 'fields'])
+            ->willReturn([
+                ['name' => 'products_b', 'num_documents' => 3],
+                ['name' => 'products_a', 'num_documents' => 1],
+            ]);
+
+        $this->assertSame(['products_a', 'products_b'], $this->manager->getList());
+    }
+
+    public function testGetListOnAnEmptyServerIsAnEmptyArray(): void
+    {
+        $this->client->expects($this->once())->method('request')->willReturn([]);
+
+        $this->assertSame([], $this->manager->getList());
+    }
+
+    public function testGetListSkipsEntriesWithoutAStringName(): void
+    {
+        $this->client->expects($this->once())
+            ->method('request')
+            ->willReturn([['name' => 'products'], ['name' => 42], ['num_documents' => 1], 'junk', ['name' => '']]);
+
+        $this->assertSame(['products'], $this->manager->getList());
+    }
+
+    public function testGetListOnANonListBodyThrows(): void
+    {
+        $this->client->expects($this->once())->method('request')->willReturn(['message' => 'Forbidden']);
+
+        $this->expectException(TypesenseException::class);
+        $this->expectExceptionMessage('malformed collection list');
+
+        $this->manager->getList();
     }
 
     public function testExistsIsTrueWhenTheCollectionIsThere(): void

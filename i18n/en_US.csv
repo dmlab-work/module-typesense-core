@@ -1,0 +1,7 @@
+"Typesense connection is not configured: %1","Typesense connection is not configured: %1"
+"No Typesense node answered: %1","No Typesense node answered: %1"
+"Typesense API key is not configured.","Typesense API key is not configured."
+"Typesense rejected the API key (HTTP %1).","Typesense rejected the API key (HTTP %1)."
+"Typesense answered /debug with an error: %1","Typesense answered /debug with an error: %1"
+"Connected to Typesense %1.","Connected to Typesense %1."
+"Connected to Typesense %1. Unreachable nodes: %2","Connected to Typesense %1. Unreachable nodes: %2"

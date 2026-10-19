@@ -1,6 +1,7 @@
 <?php
 /**
  * Copyright © DMLab. All rights reserved.
+ * Licensed under the Open Software License version 3.0 (OSL-3.0). See LICENSE.
  */
 declare(strict_types=1);
 
@@ -59,6 +60,36 @@ class CollectionManager
     public function get(string $name): array
     {
         return $this->client->request('GET', $this->path($name));
+    }
+
+    /**
+     * Names of every collection, sorted.
+     *
+     * @return string[]
+     * @throws TypesenseException
+     */
+    public function getList(): array
+    {
+        $response = $this->client->request('GET', '/collections', null, ['exclude_fields' => 'fields']);
+
+        if (!array_is_list($response)) {
+            throw new TypesenseException(
+                'Typesense returned a malformed collection list: the body is not an array.',
+                0,
+                $response
+            );
+        }
+
+        $names = [];
+        foreach ($response as $collection) {
+            $name = is_array($collection) ? ($collection['name'] ?? null) : null;
+            if (is_string($name) && $name !== '') {
+                $names[] = $name;
+            }
+        }
+        sort($names, SORT_STRING);
+
+        return $names;
     }
 
     /**

@@ -1,6 +1,7 @@
 <?php
 /**
  * Copyright © DMLab. All rights reserved.
+ * Licensed under the Open Software License version 3.0 (OSL-3.0). See LICENSE.
  */
 declare(strict_types=1);
 
@@ -24,14 +25,16 @@ interface TransportInterface
      * @param string $url absolute URL including query string
      * @param array<string,string> $headers header name => value
      * @param string|null $body raw request body
-     * @param int $timeout seconds
-     * @throws TransportException when the host could not be reached or answered unintelligibly
+     * @param float $timeout seconds, honoured to the millisecond
+     * @throws TransportException when the host could not be reached or answered unintelligibly; pass
+     *         `$requestSent = false` only when the request provably never left (enables write failover)
+     *         and the cURL errno (28 counts as a timeout)
      */
     public function send(
         string $method,
         string $url,
-        array $headers = [],
+        #[\SensitiveParameter] array $headers = [],
         ?string $body = null,
-        int $timeout = 5
+        float $timeout = 5
     ): Response;
 }
