@@ -22,7 +22,6 @@ use Magento\Framework\HTTP\Adapter\Curl;
 use Magento\Framework\Filesystem\Driver\File;
 use Magento\Framework\HTTP\Adapter\CurlFactory;
 use Magento\Framework\Lock\Backend\FileLock;
-use Magento\Framework\ObjectManagerInterface;
 use Magento\Framework\Stdlib\DateTime\DateTime;
 use Magento\Framework\Stdlib\DateTime\TimezoneInterface;
 use PHPUnit\Framework\TestCase;
@@ -73,9 +72,10 @@ abstract class TypesenseTestCase extends TestCase
         $this->prefix = 'dmlab_it_' . bin2hex(random_bytes(4)) . '_';
         $this->settings = new EnvConnectionSettings($url, $apiKey);
 
-        $objectManager = $this->createStub(ObjectManagerInterface::class);
-        $objectManager->method('create')->willReturnCallback(static fn (): Curl => new Curl());
-        $this->transport = new CurlTransport(new CurlFactory($objectManager));
+        // Stubbed: without Magento's generated/ code the test autoloader's factory create() is empty.
+        $curlFactory = $this->createStub(CurlFactory::class);
+        $curlFactory->method('create')->willReturnCallback(static fn (): Curl => new Curl());
+        $this->transport = new CurlTransport($curlFactory);
         $this->cache = new ArrayCache();
         $this->client = $this->createClient($this->settings);
 
