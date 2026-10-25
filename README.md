@@ -62,7 +62,7 @@ consumer can declare engine features without forking core. There is deliberately
 
 ## Requirements
 
-Magento 2.4.x · PHP 8.3–8.5 · `ext-curl` · `magento/framework ^103.0.9` · Typesense ≥ 30.0
+Magento 2.4.9+ · PHP 8.3–8.5 · `ext-curl` · `magento/framework ^103.0.9` · Typesense ≥ 30.0
 (synonym sets API), verified on 30.2.
 
 ## Integration tests
