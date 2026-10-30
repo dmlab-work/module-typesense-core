@@ -14,7 +14,6 @@
          failOnNotice="true"
          failOnDeprecation="true"
          failOnPhpunitDeprecation="true"
-         displayDetailsOnPhpunitNotices="true"
          cacheDirectory=".phpunit.cache">
     <testsuites>
         <testsuite name="DmLab_TypesenseCore unit">

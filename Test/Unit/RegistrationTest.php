@@ -53,10 +53,29 @@ class RegistrationTest extends TestCase
             ['ext-curl', 'laminas/laminas-http', 'magento/framework', 'php', 'psr/log', 'symfony/console'],
             self::sortedKeys($require)
         );
-        self::assertSame('^103.0.9', $require['magento/framework']);
+        self::assertSame('^103.0.7', $require['magento/framework']);
+        self::assertSame('~8.2.0||~8.3.0||~8.4.0||~8.5.0', $require['php']);
+        self::assertSame('^6.4||^7.4', $require['symfony/console']);
+        self::assertSame('^11.5||^12.5', $composer['require-dev']['phpunit/phpunit']);
         foreach ($require as $package => $constraint) {
             self::assertStringNotContainsString('>=', $constraint, $package);
         }
+    }
+
+    public function testComposerHasPackagistMetadata(): void
+    {
+        $composer = json_decode(
+            (string)file_get_contents(self::moduleRoot() . '/composer.json'),
+            true,
+            512,
+            JSON_THROW_ON_ERROR
+        );
+        $repo = 'https://github.com/dmlab-work/module-typesense-core';
+
+        self::assertSame($repo, $composer['homepage'] ?? null);
+        self::assertSame($repo . '/issues', $composer['support']['issues'] ?? null);
+        self::assertSame($repo, $composer['support']['source'] ?? null);
+        self::assertContains('magento2-module', $composer['keywords'] ?? []);
     }
 
     public function testTranslationFileCoversEveryPhrase(): void
